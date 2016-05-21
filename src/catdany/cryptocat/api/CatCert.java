@@ -8,7 +8,6 @@ import java.nio.charset.Charset;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SignatureException;
@@ -17,6 +16,9 @@ import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Date;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.xml.bind.DatatypeConverter;
 
 import com.google.gson.Gson;
@@ -40,6 +42,7 @@ public class CatCert
 	public final String version;
 	
 	public final String subject;
+	public final String note;
 	public final Date validFrom;
 	public final Date validTo;
 	
@@ -75,10 +78,27 @@ public class CatCert
 	 */
 	public final byte[] signature;
 	
-	private CatCert(String version, String subject, Date validFrom, Date validTo, PublicKey publicKey, PrivateKey privateKey, boolean isCA, CatCert parent, byte[] fingerprint, byte[] signature)
+	/**
+	 * Fingerprint algorithm<br>
+	 * Default is 'SHA-1'
+	 */
+	public final String algorithmFingerprint;
+	/**
+	 * PKC algorithm<br>
+	 * Default is 'RSA'
+	 */
+	public final String algorithmKeys;
+	/**
+	 * Signature hashing algorithm<br>
+	 * Default is 'SHA256withRSA'
+	 */
+	public final String algorithmSignatureHash;
+	
+	private CatCert(String version, String subject, String note, Date validFrom, Date validTo, PublicKey publicKey, PrivateKey privateKey, boolean isCA, CatCert parent, byte[] fingerprint, byte[] signature, String algorithmFingerprint, String algorithmKeys, String algorithmSignatureHash)
 	{
 		this.version = version;
 		this.subject = subject;
+		this.note = note;
 		this.validFrom = validFrom;
 		this.validTo = validTo;
 		this.publicKey = publicKey;
@@ -87,11 +107,14 @@ public class CatCert
 		this.parent = parent;
 		this.fingerprint = fingerprint;
 		this.signature = signature;
+		this.algorithmFingerprint = algorithmFingerprint;
+		this.algorithmKeys = algorithmKeys;
+		this.algorithmSignatureHash = algorithmSignatureHash;
 	}
 	
-	public static CatCert create(String version, String subject, Date validFrom, Date validTo, boolean isCA, CatCert parent)
+	public static CatCert create(String version, String subject, String note, Date validFrom, Date validTo, boolean isCA, CatCert parent, String algorithmFingerprint, String algorithmKeys, String algorithmSignatureHash)
 	{
-		CatKeyGen keys = new CatKeyGen();
+		CatKeyGen keys = new CatKeyGen(algorithmKeys, 2048);
 		CatCert.Builder b = new CatCert.Builder()
 			.setVersion(version)
 			.setSubject(subject)
@@ -100,13 +123,16 @@ public class CatCert
 			.setIsCA(isCA)
 			.setPublicKey(keys.pubKey)
 			.setPrivateKey(keys.privKey)
+			.setFingerprintAlgorithm(algorithmFingerprint)
+			.setKeyAlgorithm(algorithmKeys)
+			.setSignatureHashAlgorithm(algorithmSignatureHash)
 			.setParent(parent)
 			.setFingerprint();
 		PrivateKey privKey = (parent == null) ? b.privateKey : parent.privateKey;
 		try
 		{
 			CatSigner sig = new CatSigner(privKey);
-			b.setSignature(sig.sign(b.fingerprint));
+			b.setSignature(sig.sign(b.fingerprint, algorithmSignatureHash));
 		}
 		catch (Exception t)
 		{
@@ -123,34 +149,78 @@ public class CatCert
 	
 	/**
 	 * Clone this object without {@link #privateKey}
-	 * @return
+	 * @return New {@link CatCert} object containing all the information of <i>this one</i> but the private key
 	 */
 	public CatCert clonePublic()
 	{
-		return new CatCert(version, subject, validFrom, validTo, publicKey, null, isCA, parent, fingerprint, signature);
+		return new CatCert(version, subject, note, validFrom, validTo, publicKey, null, isCA, parent, fingerprint, signature, algorithmFingerprint, algorithmKeys, algorithmSignatureHash);
+	}
+	
+	/**
+	 * Encrypt private key with a password
+	 * @param password
+	 * @return Byte array containing encrypted private key<br>
+	 * <code>null</code> if this certificate does not have a private key
+	 */
+	public byte[] getEncryptedPrivateKey(String password)
+	{
+		try
+		{
+			if (privateKey == null)
+			{
+				return null;
+			}
+			CatCipher cipher = new CatCipher(password.getBytes());
+			return cipher.encrypt(privateKey.getEncoded());
+		}
+		catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeySpecException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException t)
+		{
+			throw new RuntimeException("Unable to encrypt a private key.", t);
+		}
+	}
+	
+	/**
+	 * Clone this certificate and add a private key to it<br>
+	 * @param encryptedPrivateKey Byte array containing a private key encrypted with a password
+	 * @param password
+	 * @return New {@link CatCert} object containing all the information of <i>this one</i> and the private key
+	 * @throws RuntimeException NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeySpecException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException
+	 */
+	public CatCert getPrivateKeyCert(byte[] encryptedPrivateKey, String password)
+	{
+		try
+		{ 
+			CatCipher cipher = new CatCipher(password.getBytes());
+			PrivateKey privateKey = CatKeyFactory.restorePrivateKey(cipher.decrypt(encryptedPrivateKey), algorithmKeys);
+			return new CatCert(version, subject, note, validFrom, validTo, publicKey, privateKey, isCA, parent, fingerprint, signature, algorithmFingerprint, algorithmKeys, algorithmSignatureHash);
+		}
+		catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeySpecException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException t)
+		{
+			throw new RuntimeException("Unable to decrypt a private key.", t);
+		}
 	}
 	
 	/**
 	 * Generate a certificate's fingerprint<br>
-	 * Fingerprint is the hash of a serialized certificate (fingerprint and signature values are not serialized)
+	 * Fingerprint is a hash of a serialized certificate (fingerprint and signature values are not serialized)
 	 * @return
 	 */
 	public byte[] fingerprint()
 	{
-		CatCert cert = new CatCert(version, subject, validFrom, validTo, publicKey, null, isCA, parent, null, null);
+		CatCert cert = new CatCert(version, subject, note, validFrom, validTo, publicKey, null, isCA, parent, null, null, algorithmFingerprint, algorithmKeys, algorithmSignatureHash);
 		try
 		{
-			return MessageDigest.getInstance("SHA-1").digest(toJson(cert).getBytes(Charset.forName("ISO-8859-15")));
+			return MessageDigest.getInstance(cert.algorithmFingerprint).digest(toJson(cert).getBytes(Charset.forName("ISO-8859-15")));
 		}
 		catch (NoSuchAlgorithmException t)
 		{
-			throw new RuntimeException("SHA-1 is not a valid hashing algorithm.", t);
+			throw new RuntimeException(String.format("%s is not a valid hashing algorithm.", cert.algorithmFingerprint), t);
 		}
 	}
 	
 	/**
 	 * Check if the certificate is expired
-	 * @return <code>true</code> if {@link #validFrom} < NOW < {link #validTo}
+	 * @return <code>true</code> if {@link #validFrom} < NOW < {@link #validTo}
 	 */
 	public boolean isExpired()
 	{
@@ -158,11 +228,23 @@ public class CatCert
 		return date.after(validFrom) && date.before(validTo);
 	}
 	
+	/**
+	 * Serialize this to JSON
+	 * @see Serializer#serialize(CatCert, Type, JsonSerializationContext)
+	 * @param cert
+	 * @return
+	 */
 	public static String toJson(CatCert cert)
 	{
 		return gson.toJson(cert);
 	}
 	
+	/**
+	 * Deserialize this from JSON
+	 * @see Serializer#deserialize(JsonElement, Type, JsonDeserializationContext)
+	 * @param json
+	 * @return
+	 */
 	public static CatCert fromJson(String json)
 	{
 		return gson.fromJson(json, CatCert.class);
@@ -185,10 +267,16 @@ public class CatCert
 		}
 	}
 	
+	/**
+	 * Builder for {@link CatCert}
+	 * @author Dany
+	 *
+	 */
 	public static class Builder
 	{
 		private String version = "V1";
 		private String subject = null;
+		private String note = "";
 		private Date validFrom = new Date(0);
 		private Date validTo = new Date(0);
 		private PublicKey publicKey = null;
@@ -197,6 +285,9 @@ public class CatCert
 		private CatCert parent = null;
 		private byte[] fingerprint = null;
 		private byte[] signature = null;
+		private String algorithmFingerprint = "SHA-1";
+		private String algorithmKeys = "RSA";
+		private String algorithmSignatureHash = "SHA256withRSA";
 		
 		public Builder() {}
 		
@@ -211,12 +302,23 @@ public class CatCert
 		}
 		
 		/**
-		 * Set subject, who owns the certificate, default is null
+		 * Set subject, who owns the certificate, a required argument
 		 * @param subject
 		 */
 		public Builder setSubject(String subject)
 		{
 			this.subject = subject;
+			return this;
+		}
+		
+		/**
+		 * Set note, this is a custom text field, default is empty string
+		 * @param note
+		 * @return
+		 */
+		public Builder setNote(String note)
+		{
+			this.note = note;
 			return this;
 		}
 		
@@ -260,7 +362,8 @@ public class CatCert
 		}
 		
 		/**
-		 * <code>true</code> if this is a Certificate Authority and can sign other certificates
+		 * <code>true</code> if this is a Certificate Authority and can sign other certificates<br>
+		 * Default is <code>false</code>
 		 * @param isCA
 		 */
 		public Builder setIsCA(boolean isCA)
@@ -270,7 +373,9 @@ public class CatCert
 		}
 		
 		/**
-		 * Set certificate fingerprint
+		 * Set certificate fingerprint, used by deserializer<br>
+		 * Use {@link #setFingerprint()} to automatically calculate and assign the correct fingerprint
+		 * @see #fingerprint()
 		 * @param fingerprint
 		 */
 		public Builder setFingerprint(byte[] fingerprint)
@@ -291,12 +396,48 @@ public class CatCert
 		}
 		
 		/**
-		 * Set signature, fingerprint signed by the parent certificate
+		 * Set signature, fingerprint signed by the parent certificate, used by deserializer
+		 * @see CatSigner#sign(byte[]) Code for signing
+		 * @see #fingerprint Fingerprint that is being signed
+		 * @see #fingerprint() Fingerprint generation
 		 * @param signature
 		 */
 		public Builder setSignature(byte[] signature)
 		{
 			this.signature = signature;
+			return this;
+		}
+		
+		/**
+		 * Set hashing algorithm used to generate fingerprints, default is 'SHA-1'
+		 * @param algorithmFingerprint
+		 * @return
+		 */
+		public Builder setFingerprintAlgorithm(String algorithmFingerprint)
+		{
+			this.algorithmFingerprint = algorithmFingerprint;
+			return this;
+		}
+		
+		/**
+		 * Set algorithm used to handle keys, default is 'RSA'
+		 * @param algorithmKeys
+		 * @return
+		 */
+		public Builder setKeyAlgorithm(String algorithmKeys)
+		{
+			this.algorithmKeys = algorithmKeys;
+			return this;
+		}
+		
+		/**
+		 * Set hashing algorithm for signatures, default is 'SHA256withRSA'
+		 * @param algorithmFingerprint
+		 * @return
+		 */
+		public Builder setSignatureHashAlgorithm(String algorithmSignatureHash)
+		{
+			this.algorithmSignatureHash = algorithmSignatureHash;
 			return this;
 		}
 		
@@ -314,7 +455,7 @@ public class CatCert
 			}
 			if (parent != null && parent.privateKey != null)
 			{
-				parent = new CatCert(parent.version, parent.subject, parent.validFrom, parent.validTo, parent.publicKey, null, parent.isCA, parent.parent, parent.fingerprint, parent.signature);
+				parent = new CatCert(parent.version, parent.subject, parent.note, parent.validFrom, parent.validTo, parent.publicKey, null, parent.isCA, parent.parent, parent.fingerprint, parent.signature, parent.algorithmFingerprint, parent.algorithmKeys, parent.algorithmSignatureHash);
 			}
 			this.parent = parent;
 			return this;
@@ -322,20 +463,22 @@ public class CatCert
 		
 		/**
 		 * Generate a fingerprint for this builder
+		 * @throws IllegalArgumentException {@link #subject} or {@link #publicKey} is <code>null</code>
+		 * @see CatCert#fingerprint()
 		 * @return
 		 */
 		public byte[] fingerprint()
 		{
 			if (subject == null) throw new IllegalArgumentException("Attempted to build a certificate with no subject.");
 			if (publicKey == null) throw new IllegalArgumentException("Attempted to build a certificate with no public key.");
-			CatCert cert = new CatCert(version, subject, validFrom, validTo, publicKey, privateKey, isCA, parent, fingerprint, signature);
+			CatCert cert = new CatCert(version, subject, note, validFrom, validTo, publicKey, privateKey, isCA, parent, fingerprint, signature, algorithmFingerprint, algorithmKeys, algorithmSignatureHash);
 			return cert.fingerprint();
 		}
 		
 		/**
 		 * Build a certificate object
 		 * @return
-		 * @throws IllegalArgumentException if any of the required values aren't specified<br>
+		 * @throws IllegalArgumentException Any of the following fields is <code>null</code> {@link #subject}, {@link #publicKey}, {@link #fingerprint}, {@link #signature}
 		 */
 		public CatCert build()
 		{
@@ -346,29 +489,47 @@ public class CatCert
 			CatVerifier ver = new CatVerifier(parent == null ? publicKey : parent.publicKey);
 			try
 			{
-				if (!ver.verify(fingerprint, signature)) throw new IllegalSignatureException("Attempted to build a certificate with invalid signature", signature);
+				if (!ver.verify(fingerprint, signature, algorithmSignatureHash)) throw new IllegalSignatureException("Attempted to build a certificate with invalid signature", signature);
 			}
-			catch (InvalidKeyException | SignatureException | InvalidKeySpecException | NoSuchAlgorithmException | NoSuchProviderException | IOException t)
+			catch (InvalidKeyException | SignatureException | InvalidKeySpecException | NoSuchAlgorithmException | IOException t)
 			{
 				throw new RuntimeException(t);
 			}
-			return new CatCert(version, subject, validFrom, validTo, publicKey, privateKey, isCA, parent, fingerprint, signature);
+			return new CatCert(version, subject, note, validFrom, validTo, publicKey, privateKey, isCA, parent, fingerprint, signature, algorithmFingerprint, algorithmKeys, algorithmSignatureHash);
 		}
 	}
 	
+	/**
+	 * Used to serialize {@link CatCert} objects to JSON format<br>
+	 * Implements {@link JsonSerializer} and {@link JsonDeserializer}
+	 * @author Dany
+	 *
+	 */
 	public static class Serializer implements JsonSerializer<CatCert>, JsonDeserializer<CatCert>
 	{
 		private Serializer() {}
 		
+		/**
+		 * Used internally by GSON library.<br>
+		 * If you want to serialize {@link CatCert}, use {@link CatCert#toJson(CatCert)}
+		 * @param cert
+		 * @param type
+		 * @param context
+		 * @return
+		 */
 		@Override
 		public JsonElement serialize(CatCert cert, Type type, JsonSerializationContext context)
 		{
 			JsonObject json = new JsonObject();
 			json.addProperty("Version", cert.version);
 			json.addProperty("Subject", cert.subject);
+			json.addProperty("Note", cert.note);
 			json.addProperty("ValidFrom", CatUtils.formatDate(cert.validFrom));
 			json.addProperty("ValidTo", CatUtils.formatDate(cert.validTo));
 			json.addProperty("IsCA", cert.isCA);
+			json.addProperty("FingerprintAlgorithm", cert.algorithmFingerprint);
+			json.addProperty("KeyAlgorithm", cert.algorithmKeys);
+			json.addProperty("SignatureHashAlgorithm", cert.algorithmSignatureHash);
 			if (cert.fingerprint != null)
 			{
 				json.addProperty("Fingerprint", DatatypeConverter.printHexBinary(cert.fingerprint));
@@ -378,10 +539,6 @@ public class CatCert
 				json.addProperty("Signature", DatatypeConverter.printHexBinary(cert.signature));
 			}
 			json.addProperty("PublicKey", DatatypeConverter.printHexBinary(cert.publicKey.getEncoded()));
-			if (cert.privateKey != null)
-			{
-				json.addProperty("PrivateKey", DatatypeConverter.printHexBinary(cert.privateKey.getEncoded()));
-			}
 			if (cert.parent != null)
 			{
 				json.add("Parent", gson.toJsonTree(cert.parent));
@@ -389,6 +546,15 @@ public class CatCert
 			return json;
 		}
 		
+		/**
+		 * Used internally by GSON library.<br>
+		 * If you want to deserialize {@link #CatCert()}, use {@link CatCert#fromJson(String)}, {@link CatCert#fromJson(File)}
+		 * @param jsonElement
+		 * @param type
+		 * @param context
+		 * @return
+		 * @throws JsonParseException
+		 */
 		@Override
 		public CatCert deserialize(JsonElement jsonElement, Type type, JsonDeserializationContext context) throws JsonParseException
 		{
@@ -399,7 +565,10 @@ public class CatCert
 				.setIsCA(json.get("IsCA").getAsBoolean())
 				.setFingerprint(DatatypeConverter.parseHexBinary(json.get("Fingerprint").getAsString()))
 				.setSignature(DatatypeConverter.parseHexBinary(json.get("Signature").getAsString()))
-				.setPublicKey(CatKeyFactory.restorePublicKey(DatatypeConverter.parseHexBinary(json.get("PublicKey").getAsString())));
+				.setFingerprintAlgorithm(json.get("FingerprintAlgorithm").getAsString())
+				.setKeyAlgorithm(json.get("KeyAlgorithm").getAsString())
+				.setSignatureHashAlgorithm(json.get("SignatureHashAlgorithm").getAsString());
+			b.setPublicKey(CatKeyFactory.restorePublicKey(DatatypeConverter.parseHexBinary(json.get("PublicKey").getAsString()), b.algorithmKeys));
 			try
 			{
 				b
@@ -409,10 +578,6 @@ public class CatCert
 			catch (ParseException t)
 			{
 				throw new RuntimeException("Couldn't parse ValidFrom / ValidTo date.", t);
-			}
-			if (json.has("PrivateKey"))
-			{
-				b.setPrivateKey(CatKeyFactory.restorePrivateKey(DatatypeConverter.parseHexBinary(json.get("PrivateKey").getAsString())));
 			}
 			if (json.has("Parent"))
 			{

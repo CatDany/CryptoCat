@@ -21,7 +21,7 @@ public class CatZipper
 	public final CatSignature sig;
 	
 	/**
-	 * Sign a file and prepare for zipping<br>
+	 * Sign a file and create temporary files needed for zipping<br>
 	 * To create a zip-file, call {@link #zip()}
 	 * @param zipFile
 	 * @param cert Certificate with a private key
@@ -35,8 +35,8 @@ public class CatZipper
 		if (!cert.isExpired()) throw new CertificateExpiredException(cert);
 		this.fileToSign = fileToSign;
 		this.outputZip = outputZip;
-		CatSignature sigTmp = new CatSignature(new CatSigner(cert.privateKey).sign(fileToSign), cert, fileToSign.getName(), null);
-		Timestamp timestamp = Timestamp.generate(sigTmp);
+		CatSignature sigTmp = new CatSignature(new CatSigner(cert.privateKey).sign(fileToSign, cert.algorithmSignatureHash), cert, fileToSign.getName(), null);
+		CatTimestamp timestamp = CatTimestamp.generate(sigTmp);
 		this.sig = new CatSignature(sigTmp.signedBytes, sigTmp.cert, sigTmp.filename, timestamp);
 		File tmpFolder = new File(System.getenv("TEMP") + "\\" + Math.random());
 		if (!tmpFolder.exists() || !tmpFolder.isDirectory())
@@ -50,8 +50,17 @@ public class CatZipper
 		writer.close();
 	}
 	
+	/**
+	 * Create a zip-file for temporary files
+	 * @throws ZipException
+	 * @throws IOException
+	 */
 	public void zip() throws ZipException, IOException
 	{
+		if (outputZip.exists() && !outputZip.isDirectory())
+		{
+			outputZip.delete();
+		}
 		ZipFile zip = new ZipFile(outputZip);
 		ZipParameters params = new ZipParameters();
 		params.setCompressionMethod(Zip4jConstants.COMP_DEFLATE);

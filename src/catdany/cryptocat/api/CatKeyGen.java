@@ -3,7 +3,6 @@ package catdany.cryptocat.api;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 
@@ -13,25 +12,31 @@ public class CatKeyGen
 	public final PublicKey pubKey;
 	
 	/**
-	 * @throws KeyGenException A wrapper for {@link NoSuchAlgorithmException}, {@link NoSuchProviderException}
+	 * @throws KeyGenException A wrapper for {@link NoSuchAlgorithmException}
+	 * @param algorithmKeys Algorithm used for {@link KeyPairGenerator}, default is 'RSA'
+	 * @param keySize Key size, default is '2048'
 	 */
-	public CatKeyGen()
+	public CatKeyGen(String algorithmKeys, int keySize)
 	{
 		try
 		{
-			KeyPairGenerator keyGen = KeyPairGenerator.getInstance("DSA", "SUN");
-			keyGen.initialize(1024);
+			KeyPairGenerator keyGen = KeyPairGenerator.getInstance(algorithmKeys);
+			keyGen.initialize(keySize);
 			
 			KeyPair pair = keyGen.generateKeyPair();
 			this.privKey = pair.getPrivate();
 			this.pubKey = pair.getPublic();
 		}
-		catch (NoSuchProviderException | NoSuchAlgorithmException t)
+		catch (NoSuchAlgorithmException t)
 		{
 			throw new KeyGenException(t);
 		}
 	}
-	
+
+	/**
+	 * This exception is thrown when an error happens during {@link CatKeyGen#CatKeyGen(String, int) CatKeyGen construction}
+	 * @author Dany
+	 */
 	public static class KeyGenException extends RuntimeException
 	{
 		/**

@@ -52,6 +52,6 @@ public class CatUnzipper
 	public boolean verify() throws InvalidKeyException, SignatureException, InvalidKeySpecException, NoSuchAlgorithmException, NoSuchProviderException, FileNotFoundException, IOException
 	{
 		CatVerifier ver = new CatVerifier(sig.cert.publicKey);
-		return ver.verify(tmpFile, sig.signedBytes);
+		return ver.verify(tmpFile, sig.signedBytes, sig.cert.algorithmSignatureHash);
 	}
 }

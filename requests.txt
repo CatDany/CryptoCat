@@ -1,5 +1,6 @@
-{"Action":"sign","File":"textfile.txt","Output":"textfile.zip","Certificate":"danyca.json"}
-{"Action":"verify","File":"textfile.zip"}
-{"Action":"makecert","Subject":"DanyCA","ValidFrom":"2014-01-01 00:00:00 +0600", "ValidTo":"2024-01-01 00:00:00 +0600", "IsCA":true, "Output":"danyca.json"}
-{"Action":"makecert","Subject":"DanyS","ValidFrom":"2014-01-01 00:00:00 +0600", "ValidTo":"2024-01-01 00:00:00 +0600", "IsCA":false, "Parent":"danyca.json", "Output":"danys.json"}
+{"Action":"makecert","Subject":"DanyCA","ValidFrom":"2014-01-01 00:00:00 +0600", "ValidTo":"2024-01-01 00:00:00 +0600", "IsCA":true, "Output":"danyca.json", "PrivateKeyOutput":"danyca.key", "Password":"ayyylmao"}
+{"Action":"makecert","Subject":"DanyS","ValidFrom":"2014-01-01 00:00:00 +0600", "ValidTo":"2024-01-01 00:00:00 +0600", "IsCA":false, "Parent":"danyca.json", "Output":"danys.json", "ParentPrivateKey": "danyca.key", "ParentPassword": "ayyylmao", "PrivateKeyOutput":"danys.key", "Password":"ayylmao0"}
+{"Action":"sign","File":"textfile.txt","Output":"textfile.zip","Certificate":"danys.json","PrivateKey":"danys.key","Password":"ayylmao0"}
 {"Action":"printcert","File":"danyca.json"}
+{"Action":"printcert","File":"danys.json"}
+{"Action":"verify","File":"textfile.zip"}

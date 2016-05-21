@@ -1,5 +1,6 @@
 package catdany.cryptocat.api;
 
+import java.lang.reflect.Array;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.util.Calendar;
@@ -40,5 +41,32 @@ public class CatUtils
 	public static Date now()
 	{
 		return Calendar.getInstance().getTime();
+	}
+	
+	/**
+	 * Concatenate arrays
+	 * @return
+	 */
+	public static <T>T[] concatArrays(T[] a, T[] b)
+	{
+		@SuppressWarnings("unchecked")
+		T[] result = (T[])Array.newInstance(a.getClass(), a.length + b.length);
+		System.arraycopy(a, 0, result, 0, a.length);
+		System.arraycopy(b, 0, result, 0, b.length);
+		return result;
+	}
+	
+	/**
+	 * Concatenate byte arrays
+	 * @param a
+	 * @param b
+	 * @return
+	 */
+	public static byte[] concatArrays(byte[] a, byte[] b)
+	{
+		byte[] result = new byte[a.length + b.length];
+		System.arraycopy(a, 0, result, 0, a.length);
+		System.arraycopy(b, 0, result, 0, b.length);
+		return result;
 	}
 }

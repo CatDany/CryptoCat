@@ -17,18 +17,19 @@ public class CatKeyFactory
 	 * Get public key object from its encoded form
 	 * @throws KeyRestorationException A wrapper for {@link InvalidKeySpecException}, {@link NoSuchAlgorithmException}, {@link NoSuchProviderException}, {@link IllegalArgumentException}
 	 * @param encoded
+	 * @param algorithmKeys Algorithm used for {@link KeyFactory}, default is 'RSA'
 	 * @return
 	 */
-	public static PublicKey restorePublicKey(byte[] encoded)
+	public static PublicKey restorePublicKey(byte[] encoded, String algorithmKeys)
 	{
 		try
 		{
-			KeyFactory keys = KeyFactory.getInstance("DSA", "SUN");
-			return keys.generatePublic(new X509EncodedKeySpec(encoded));
+			KeyFactory factory = KeyFactory.getInstance(algorithmKeys);
+			return factory.generatePublic(new X509EncodedKeySpec(encoded));
 		}
 		catch (Exception t)
 		{
-			throw new KeyRestorationException(encoded, t);
+			throw new KeyRestorationException(encoded, algorithmKeys, t);
 		}
 	}
 	
@@ -36,21 +37,26 @@ public class CatKeyFactory
 	 * Get private key object from its encoded form
 	 * @throws KeyRestorationException A wrapper for {@link InvalidKeySpecException}, {@link NoSuchAlgorithmException}, {@link NoSuchProviderException}, {@link IllegalArgumentException}
 	 * @param encoded
+	 * @param algorithmKeys Algorithm used for {@link KeyFactory}, default is 'RSA'
 	 * @return
 	 */
-	public static PrivateKey restorePrivateKey(byte[] encoded)
+	public static PrivateKey restorePrivateKey(byte[] encoded, String algorithmKeys)
 	{
 		try
 		{
-			KeyFactory keys = KeyFactory.getInstance("DSA", "SUN");
-			return keys.generatePrivate(new PKCS8EncodedKeySpec(encoded));
+			KeyFactory factory = KeyFactory.getInstance(algorithmKeys);
+			return factory.generatePrivate(new PKCS8EncodedKeySpec(encoded));
 		}
 		catch (Exception t)
 		{
-			throw new KeyRestorationException(encoded, t);
+			throw new KeyRestorationException(encoded, algorithmKeys, t);
 		}
 	}
 	
+	/**
+	 * This exception is thrown when an error happens on {@link CatKeyFactory#restorePublicKey(byte[], String)} or {@link CatKeyFactory#restorePrivateKey(byte[], String)}
+	 * @author Dany
+	 */
 	public static class KeyRestorationException extends RuntimeException
 	{
 		/**
@@ -58,9 +64,9 @@ public class CatKeyFactory
 		 */
 		private static final long serialVersionUID = -2421332797739107097L;
 
-		public KeyRestorationException(byte[] key, Throwable cause)
+		public KeyRestorationException(byte[] key, String algorithm, Throwable cause)
 		{
-			super(String.format("Could not restore a key: %s", DatatypeConverter.printHexBinary(key)), cause);
+			super(String.format("Could not restore %s key: %s", algorithm, DatatypeConverter.printHexBinary(key)), cause);
 		}
 	}
 }

@@ -6,7 +6,6 @@ import java.nio.charset.Charset;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.SignatureException;
 import java.text.ParseException;
 import java.util.Date;
@@ -23,16 +22,16 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 
-public class Timestamp
+public class CatTimestamp
 {
-	static final Gson gson = new GsonBuilder().registerTypeAdapter(Timestamp.class, new Serializer()).create();
+	static final Gson gson = new GsonBuilder().registerTypeAdapter(CatTimestamp.class, new Serializer()).create();
 	
 	public final Date time;
 	public final CatSignature sig;
 	public final byte[] fingerprint;
 	public final byte[] signedBytes;
 	
-	public Timestamp(Date time, CatSignature sig, byte[] fingerprint, byte[] signedBytes)
+	public CatTimestamp(Date time, CatSignature sig, byte[] fingerprint, byte[] signedBytes)
 	{
 		this.time = time;
 		this.sig = sig;
@@ -46,24 +45,24 @@ public class Timestamp
 	 * @param sig
 	 * @return
 	 */
-	public static Timestamp generate(CatSignature sig)
+	public static CatTimestamp generate(CatSignature sig)
 	{
 		try
 		{
 			Date time = CatUtils.now();
 			byte[] fingerprint = getFingerprint(sig, time);
-			byte[] signedBytes = new CatSigner(sig.cert.privateKey).sign(fingerprint);
-			return new Timestamp(time, sig, fingerprint, signedBytes);
+			byte[] signedBytes = new CatSigner(sig.cert.privateKey).sign(fingerprint, sig.cert.algorithmSignatureHash);
+			return new CatTimestamp(time, sig, fingerprint, signedBytes);
 		}
-		catch (NoSuchAlgorithmException | NoSuchProviderException | InvalidKeyException | SignatureException | IOException t)
+		catch (NoSuchAlgorithmException | InvalidKeyException | SignatureException | IOException t)
 		{
 			throw new RuntimeException("Couldn't generate a timestamp.", t);
 		}
 	}
 	
-	public static Timestamp fromJson(String json)
+	public static CatTimestamp fromJson(String json)
 	{
-		return gson.fromJson(json, Timestamp.class);
+		return gson.fromJson(json, CatTimestamp.class);
 	}
 	
 	public String toJson()
@@ -73,23 +72,21 @@ public class Timestamp
 	
 	public static byte[] getFingerprint(CatSignature sig, Date time)
 	{
-		System.out.println("sig " + sig.toJson());
 		CatSignature sig0 = new CatSignature(sig.signedBytes, sig.cert, sig.filename, null);
-		System.out.println("sig0 " + sig0.toJson());
 		try
 		{
-			return MessageDigest.getInstance("SHA-1").digest((sig0.toJson() + CatUtils.formatDate(time)).getBytes(Charset.forName("ISO-8859-15")));
+			return MessageDigest.getInstance(sig.cert.algorithmFingerprint).digest((sig0.toJson() + CatUtils.formatDate(time)).getBytes(Charset.forName("ISO-8859-15")));
 		}
 		catch (NoSuchAlgorithmException t)
 		{
-			throw new RuntimeException("SHA-1 is not a valid hashing algorithm.", t);
+			throw new RuntimeException(String.format("%s is not a valid hashing algorithm.", sig.cert.algorithmFingerprint), t);
 		}
 	}
 	
-	public static class Serializer implements JsonSerializer<Timestamp>, JsonDeserializer<Timestamp>
+	public static class Serializer implements JsonSerializer<CatTimestamp>, JsonDeserializer<CatTimestamp>
 	{
 		@Override
-		public JsonElement serialize(Timestamp src, Type typeOfSrc, JsonSerializationContext context)
+		public JsonElement serialize(CatTimestamp src, Type typeOfSrc, JsonSerializationContext context)
 		{
 			JsonObject json = new JsonObject();
 			json.addProperty("Date", CatUtils.formatDate(src.time));
@@ -99,12 +96,12 @@ public class Timestamp
 		}
 		
 		@Override
-		public Timestamp deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException
+		public CatTimestamp deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException
 		{
 			JsonObject j = json.getAsJsonObject();
 			try
 			{
-				return new Timestamp(
+				return new CatTimestamp(
 							CatUtils.parseDate(j.get("Date").getAsString()),
 							null,
 							DatatypeConverter.parseHexBinary(j.get("Fingerprint").getAsString()),

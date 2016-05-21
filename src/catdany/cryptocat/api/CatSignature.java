@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.lang.reflect.Type;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.SignatureException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
@@ -30,24 +29,24 @@ public class CatSignature
 	public final byte[] signedBytes;
 	public final CatCert cert;
 	public final String filename;
-	public final Timestamp timestamp;
+	public final CatTimestamp timestamp;
 	
-	public CatSignature(byte[] signedBytes, CatCert cert, String filename, Timestamp timestamp)
+	public CatSignature(byte[] signedBytes, CatCert cert, String filename, CatTimestamp timestamp)
 	{
 		this.signedBytes = signedBytes;
 		this.cert = cert;
 		this.filename = filename;
 		if (timestamp != null)
 		{
-			this.timestamp = new Timestamp(timestamp.time, this, timestamp.fingerprint, timestamp.signedBytes);
-			byte[] actualFingerprint = Timestamp.getFingerprint(this, timestamp.time);
+			this.timestamp = new CatTimestamp(timestamp.time, this, timestamp.fingerprint, timestamp.signedBytes);
+			byte[] actualFingerprint = CatTimestamp.getFingerprint(this, timestamp.time);
 			if (!Arrays.equals(actualFingerprint, timestamp.fingerprint)) throw new FingerprintViolationException("Signature has invalid timestamp fingerprint.", timestamp.fingerprint, actualFingerprint);
 			CatVerifier ver = new CatVerifier(cert.publicKey);
 			try
 			{
-				if (!ver.verify(timestamp.fingerprint, timestamp.signedBytes)) throw new IllegalSignatureException("Signature has invalid timestamp signature.", timestamp.signedBytes);
+				if (!ver.verify(timestamp.fingerprint, timestamp.signedBytes, cert.algorithmSignatureHash)) throw new IllegalSignatureException("Signature has invalid timestamp signature.", timestamp.signedBytes);
 			}
-			catch (InvalidKeyException | SignatureException | InvalidKeySpecException | NoSuchAlgorithmException | NoSuchProviderException | IOException t)
+			catch (InvalidKeyException | SignatureException | InvalidKeySpecException | NoSuchAlgorithmException | IOException t)
 			{
 				throw new RuntimeException(t);
 			}
@@ -94,7 +93,7 @@ public class CatSignature
 			json.addProperty("Filename", src.filename);
 			json.addProperty("Signature", DatatypeConverter.printHexBinary(src.signedBytes));
 			json.add("Certificate", CatCert.gson.toJsonTree(src.cert.clonePublic()));
-			json.add("Timestamp", Timestamp.gson.toJsonTree(src.timestamp));
+			json.add("Timestamp", CatTimestamp.gson.toJsonTree(src.timestamp));
 			return json;
 		}
 		
@@ -106,7 +105,7 @@ public class CatSignature
 						DatatypeConverter.parseHexBinary(j.get("Signature").getAsString()),
 						CatCert.fromJson(j.get("Certificate").toString()),
 						j.get("Filename").getAsString(),
-						Timestamp.fromJson(j.get("Timestamp").toString())
+						CatTimestamp.fromJson(j.get("Timestamp").toString())
 					);
 		}
 	}

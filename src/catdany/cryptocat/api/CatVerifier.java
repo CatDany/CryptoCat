@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
@@ -24,9 +23,22 @@ public class CatVerifier
 		this.publicKey = publicKey;
 	}
 	
-	public boolean verify(InputStream stream, byte[] signedBytes) throws SignatureException, InvalidKeySpecException, NoSuchAlgorithmException, NoSuchProviderException, IOException, InvalidKeyException
+	/**
+	 * Verify a signature<br>
+	 * This method blocks until end of stream is reached
+	 * @param stream Stream of original bytes
+	 * @param signedBytes Byte array containing a signature
+	 * @param algorithmSignatureHash Algorithm used for {@link Signature}, default is 'SHA256withRSA'
+	 * @return
+	 * @throws SignatureException
+	 * @throws InvalidKeySpecException
+	 * @throws NoSuchAlgorithmException
+	 * @throws IOException
+	 * @throws InvalidKeyException
+	 */
+	public boolean verify(InputStream stream, byte[] signedBytes, String algorithmSignatureHash) throws SignatureException, InvalidKeySpecException, NoSuchAlgorithmException, IOException, InvalidKeyException
 	{
-		Signature dsa = Signature.getInstance("SHA1withDSA", "SUN");
+		Signature dsa = Signature.getInstance(algorithmSignatureHash);
 		dsa.initVerify(publicKey);
 		
 		byte[] buffer = new byte[1024];
@@ -40,14 +52,40 @@ public class CatVerifier
 		
 		return dsa.verify(signedBytes);
 	}
-	
-	public boolean verify(File file, byte[] signedBytes) throws InvalidKeyException, SignatureException, InvalidKeySpecException, NoSuchAlgorithmException, NoSuchProviderException, FileNotFoundException, IOException
+
+	/**
+	 * Verify a signature<br>
+	 * This method uses {@link BufferedInputStream} with {@link FileInputStream}
+	 * @param file File containing original data
+	 * @param signedBytes Byte array containing a signature
+	 * @param algorithmSignatureHash Algorithm used for {@link Signature}, default is 'SHA256withRSA'
+	 * @return
+	 * @throws SignatureException
+	 * @throws InvalidKeySpecException
+	 * @throws NoSuchAlgorithmException
+	 * @throws IOException
+	 * @throws InvalidKeyException
+	 */
+	public boolean verify(File file, byte[] signedBytes, String algorithmSignatureHash) throws InvalidKeyException, SignatureException, InvalidKeySpecException, NoSuchAlgorithmException, FileNotFoundException, IOException
 	{
-		return verify(new BufferedInputStream(new FileInputStream(file)), signedBytes);
+		return verify(new BufferedInputStream(new FileInputStream(file)), signedBytes, algorithmSignatureHash);
 	}
-	
-	public boolean verify(byte[] data, byte[] signedBytes) throws InvalidKeyException, SignatureException, InvalidKeySpecException, NoSuchAlgorithmException, NoSuchProviderException, IOException
+
+	/**
+	 * Verify a signature<br>
+	 * This method blocks until end of stream is reached
+	 * @param data Byte array containing original data
+	 * @param signedBytes Byte array containing a signature
+	 * @param algorithmSignatureHash Algorithm used for {@link Signature}, default is 'SHA256withRSA'
+	 * @return
+	 * @throws SignatureException
+	 * @throws InvalidKeySpecException
+	 * @throws NoSuchAlgorithmException
+	 * @throws IOException
+	 * @throws InvalidKeyException
+	 */
+	public boolean verify(byte[] data, byte[] signedBytes, String algorithmSignatureHash) throws InvalidKeyException, SignatureException, InvalidKeySpecException, NoSuchAlgorithmException, IOException
 	{
-		return verify(new ByteArrayInputStream(data), signedBytes);
+		return verify(new ByteArrayInputStream(data), signedBytes, algorithmSignatureHash);
 	}
 }

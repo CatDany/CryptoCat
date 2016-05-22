@@ -10,9 +10,16 @@ public class CatUtils
 {
 	private static DateFormat dateFormat = null;
 	
-	public static Date parseDate(String format) throws ParseException
+	public static Date parseDate(String format)
 	{
-		return dateFormat.parse(format);
+		try
+		{
+			return dateFormat.parse(format);
+		}
+		catch (ParseException t)
+		{
+			throw new RuntimeParseException(t);
+		}
 	}
 	
 	public static String formatDate(Date date)
@@ -68,5 +75,23 @@ public class CatUtils
 		System.arraycopy(a, 0, result, 0, a.length);
 		System.arraycopy(b, 0, result, 0, b.length);
 		return result;
+	}
+	
+	/**
+	 * Used as a wrapper for {@link ParseException}
+	 * @author Dany
+	 *
+	 */
+	public static class RuntimeParseException extends RuntimeException
+	{
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = -3563555000158528651L;
+
+		public RuntimeParseException(ParseException t)
+		{
+			super(t);
+		}
 	}
 }

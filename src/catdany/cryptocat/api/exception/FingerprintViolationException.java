@@ -1,4 +1,4 @@
-package catdany.cryptocat.api;
+package catdany.cryptocat.api.exception;
 
 import javax.xml.bind.DatatypeConverter;
 

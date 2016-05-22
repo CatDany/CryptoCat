@@ -1,6 +1,9 @@
-package catdany.cryptocat.api;
+package catdany.cryptocat.api.exception;
 
 import javax.xml.bind.DatatypeConverter;
+
+import catdany.cryptocat.api.CatCert;
+import catdany.cryptocat.api.CatUtils;
 
 public class CertificateExpiredException extends SecurityException
 {

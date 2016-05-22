@@ -12,6 +12,11 @@ import java.util.Arrays;
 
 import javax.xml.bind.DatatypeConverter;
 
+import catdany.cryptocat.api.exception.FingerprintViolationException;
+import catdany.cryptocat.api.exception.IllegalSignatureException;
+import catdany.cryptocat.api.exception.RuntimeIOException;
+import catdany.cryptocat.api.exception.SignatureVerificationException;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonDeserializationContext;
@@ -48,7 +53,7 @@ public class CatSignature
 			}
 			catch (InvalidKeyException | SignatureException | InvalidKeySpecException | NoSuchAlgorithmException | IOException t)
 			{
-				throw new RuntimeException(t);
+				throw new SignatureVerificationException("Couldn't verify signature on a timestamp.", t);
 			}
 		}
 		else
@@ -70,7 +75,7 @@ public class CatSignature
 		}
 		catch (IOException t)
 		{
-			throw new RuntimeException("Couldn't read signature from temporary file.", t);
+			throw new RuntimeIOException(t);
 		}
 	}
 	

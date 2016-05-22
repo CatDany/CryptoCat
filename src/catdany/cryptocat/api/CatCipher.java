@@ -29,7 +29,7 @@ public class CatCipher
 	{
 		if (password.length != 8)
 		{
-			throw new RuntimeException("Password must be 8 bytes long.");
+			throw new IndexOutOfBoundsException("Password must be 8 bytes long.");
 		}
 		DESKeySpec keySpec = new DESKeySpec(password);
 		SecretKeyFactory factory = SecretKeyFactory.getInstance("DES");
@@ -51,6 +51,14 @@ public class CatCipher
 		return cipher.doFinal(data);
 	}
 	
+	/**
+	 * Decrypt data with a password
+	 * @param encrypted
+	 * @return
+	 * @throws IllegalBlockSizeException
+	 * @throws BadPaddingException
+	 * @throws InvalidKeyException
+	 */
 	public byte[] decrypt(byte[] encrypted) throws IllegalBlockSizeException, BadPaddingException, InvalidKeyException
 	{
 		cipher.init(Cipher.DECRYPT_MODE, secret);

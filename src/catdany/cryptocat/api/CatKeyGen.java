@@ -6,6 +6,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 
+import catdany.cryptocat.api.exception.KeyGenException;
+
 public class CatKeyGen
 {
 	public final PrivateKey privKey;
@@ -30,23 +32,6 @@ public class CatKeyGen
 		catch (NoSuchAlgorithmException t)
 		{
 			throw new KeyGenException(t);
-		}
-	}
-
-	/**
-	 * This exception is thrown when an error happens during {@link CatKeyGen#CatKeyGen(String, int) CatKeyGen construction}
-	 * @author Dany
-	 */
-	public static class KeyGenException extends RuntimeException
-	{
-		/**
-		 * 
-		 */
-		private static final long serialVersionUID = -6432673686381331016L;
-
-		public KeyGenException(Throwable t)
-		{
-			super(t);
 		}
 	}
 }

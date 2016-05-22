@@ -7,10 +7,12 @@ import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SignatureException;
-import java.text.ParseException;
 import java.util.Date;
 
 import javax.xml.bind.DatatypeConverter;
+
+import catdany.cryptocat.api.CatUtils.RuntimeParseException;
+import catdany.cryptocat.api.exception.SignatureGenerationException;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -56,7 +58,7 @@ public class CatTimestamp
 		}
 		catch (NoSuchAlgorithmException | InvalidKeyException | SignatureException | IOException t)
 		{
-			throw new RuntimeException("Couldn't generate a timestamp.", t);
+			throw new SignatureGenerationException("Couldn't generate a timestamp.", t);
 		}
 	}
 	
@@ -108,9 +110,9 @@ public class CatTimestamp
 							DatatypeConverter.parseHexBinary(j.get("Signature").getAsString())
 						);
 			}
-			catch (ParseException t)
+			catch (RuntimeParseException t)
 			{
-				throw new JsonParseException("Couldn't parse date of the timestamp.", t);
+				throw new JsonParseException("Couldn't parse date of the timestamp.", t.getCause());
 			}
 		}
 	}

@@ -12,7 +12,6 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.spec.InvalidKeySpecException;
-import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Date;
 
@@ -20,6 +19,15 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.xml.bind.DatatypeConverter;
+
+import catdany.cryptocat.api.CatUtils.RuntimeParseException;
+import catdany.cryptocat.api.exception.CipherDecryptionException;
+import catdany.cryptocat.api.exception.CipherEncryptionException;
+import catdany.cryptocat.api.exception.FingerprintViolationException;
+import catdany.cryptocat.api.exception.HashException;
+import catdany.cryptocat.api.exception.IllegalSignatureException;
+import catdany.cryptocat.api.exception.SignatureGenerationException;
+import catdany.cryptocat.api.exception.SignatureVerificationException;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -112,6 +120,21 @@ public class CatCert
 		this.algorithmSignatureHash = algorithmSignatureHash;
 	}
 	
+	/**
+	 * Create a new certificate and generate a keypair for it
+	 * @param version Certificate Version, default is 'V1'
+	 * @param subject Subject, a required field
+	 * @param note Custom text field, use for whatever you want, default is empty string
+	 * @param validFrom Validity period (not before), default is 1970-01-01 00:00:00 +0000
+	 * @param validTo Validity period (not after), default is 1970-01-01 00:00:00 +0000
+	 * @param isCA If <code>true</code>, this certificate can sign other certificates (be a parent)
+	 * @param parent Parent certificate, <code>null</code> if you want it to be self-signed, default is <code>null</code>
+	 * @param algorithmFingerprint Hashing algorithm used for fingerprints, default is 'SHA-1'
+	 * @param algorithmKeys Cryptographic algorithm used for generating keys, encrypting, decrypting, signing and verifying
+	 * @param algorithmSignatureHash Hashing algorithm used for generating and verifying signatures
+	 * @throws SignatureGenerationException A wrapper for {@link InvalidKeyException}, {@link NoSuchAlgorithmException}, {@link SignatureException}, {@link IOException} that may occur during signature generation for the certificate
+	 * @return
+	 */
 	public static CatCert create(String version, String subject, String note, Date validFrom, Date validTo, boolean isCA, CatCert parent, String algorithmFingerprint, String algorithmKeys, String algorithmSignatureHash)
 	{
 		CatKeyGen keys = new CatKeyGen(algorithmKeys, 2048);
@@ -134,9 +157,9 @@ public class CatCert
 			CatSigner sig = new CatSigner(privKey);
 			b.setSignature(sig.sign(b.fingerprint, algorithmSignatureHash));
 		}
-		catch (Exception t)
+		catch (InvalidKeyException | NoSuchAlgorithmException | SignatureException | IOException t)
 		{
-			new RuntimeException(t);
+			new SignatureGenerationException("Couldn't sign a certificate.", t);
 		}
 		return b.build();
 	}
@@ -175,7 +198,7 @@ public class CatCert
 		}
 		catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeySpecException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException t)
 		{
-			throw new RuntimeException("Unable to encrypt a private key.", t);
+			throw new CipherEncryptionException("Unable to encrypt a private key.", t);
 		}
 	}
 	
@@ -196,7 +219,7 @@ public class CatCert
 		}
 		catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeySpecException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException t)
 		{
-			throw new RuntimeException("Unable to decrypt a private key.", t);
+			throw new CipherDecryptionException("Unable to decrypt a private key.", t);
 		}
 	}
 	
@@ -214,7 +237,7 @@ public class CatCert
 		}
 		catch (NoSuchAlgorithmException t)
 		{
-			throw new RuntimeException(String.format("%s is not a valid hashing algorithm.", cert.algorithmFingerprint), t);
+			throw new HashException(String.format("%s is not a valid hashing algorithm.", cert.algorithmFingerprint), t);
 		}
 	}
 	
@@ -479,6 +502,7 @@ public class CatCert
 		 * Build a certificate object
 		 * @return
 		 * @throws IllegalArgumentException Any of the following fields is <code>null</code> {@link #subject}, {@link #publicKey}, {@link #fingerprint}, {@link #signature}
+		 * @throws SignatureVerificationException A wrapper for InvalidKeyException, SignatureException, InvalidKeySpecException, NoSuchAlgorithmException, IOException that may occur during certificate's signature verification
 		 */
 		public CatCert build()
 		{
@@ -493,7 +517,7 @@ public class CatCert
 			}
 			catch (InvalidKeyException | SignatureException | InvalidKeySpecException | NoSuchAlgorithmException | IOException t)
 			{
-				throw new RuntimeException(t);
+				throw new SignatureVerificationException("Couldn't verify certificate signature.", t);
 			}
 			return new CatCert(version, subject, note, validFrom, validTo, publicKey, privateKey, isCA, parent, fingerprint, signature, algorithmFingerprint, algorithmKeys, algorithmSignatureHash);
 		}
@@ -558,32 +582,31 @@ public class CatCert
 		@Override
 		public CatCert deserialize(JsonElement jsonElement, Type type, JsonDeserializationContext context) throws JsonParseException
 		{
-			JsonObject json = jsonElement.getAsJsonObject();
-			CatCert.Builder b = new CatCert.Builder()
-				.setVersion(json.get("Version").getAsString())
-				.setSubject(json.get("Subject").getAsString())
-				.setIsCA(json.get("IsCA").getAsBoolean())
-				.setFingerprint(DatatypeConverter.parseHexBinary(json.get("Fingerprint").getAsString()))
-				.setSignature(DatatypeConverter.parseHexBinary(json.get("Signature").getAsString()))
-				.setFingerprintAlgorithm(json.get("FingerprintAlgorithm").getAsString())
-				.setKeyAlgorithm(json.get("KeyAlgorithm").getAsString())
-				.setSignatureHashAlgorithm(json.get("SignatureHashAlgorithm").getAsString());
-			b.setPublicKey(CatKeyFactory.restorePublicKey(DatatypeConverter.parseHexBinary(json.get("PublicKey").getAsString()), b.algorithmKeys));
 			try
 			{
-				b
+				JsonObject json = jsonElement.getAsJsonObject();
+				CatCert.Builder b = new CatCert.Builder()
+					.setVersion(json.get("Version").getAsString())
+					.setSubject(json.get("Subject").getAsString())
+					.setIsCA(json.get("IsCA").getAsBoolean())
+					.setFingerprint(DatatypeConverter.parseHexBinary(json.get("Fingerprint").getAsString()))
+					.setSignature(DatatypeConverter.parseHexBinary(json.get("Signature").getAsString()))
+					.setFingerprintAlgorithm(json.get("FingerprintAlgorithm").getAsString())
+					.setKeyAlgorithm(json.get("KeyAlgorithm").getAsString())
+					.setSignatureHashAlgorithm(json.get("SignatureHashAlgorithm").getAsString());
+				b.setPublicKey(CatKeyFactory.restorePublicKey(DatatypeConverter.parseHexBinary(json.get("PublicKey").getAsString()), b.algorithmKeys))
 					.setValidFrom(CatUtils.parseDate(json.get("ValidFrom").getAsString()))
 					.setValidTo(CatUtils.parseDate(json.get("ValidTo").getAsString()));
+				if (json.has("Parent"))
+				{
+					b.setParent(fromJson(json.get("Parent").toString()));
+				}
+				return b.build();
 			}
-			catch (ParseException t)
+			catch (RuntimeParseException t)
 			{
-				throw new RuntimeException("Couldn't parse ValidFrom / ValidTo date.", t);
+				throw new JsonParseException("Couldn't parse Date.", t.getCause());
 			}
-			if (json.has("Parent"))
-			{
-				b.setParent(fromJson(json.get("Parent").toString()));
-			}
-			return b.build();
 		}
 	}
 }

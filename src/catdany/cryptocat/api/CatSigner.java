@@ -1,7 +1,6 @@
 package catdany.cryptocat.api;
 
 import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -41,7 +40,7 @@ public class CatSigner
 		int len;
 		while ((len = stream.read(buffer)) >= 0)
 		{
-			sig.update(buffer, 0, len);;
+			sig.update(buffer, 0, len);
 		}
 		stream.close();
 		return sig.sign();
@@ -59,7 +58,10 @@ public class CatSigner
 	 */
 	public byte[] sign(byte[] bytes, String algorithmSignatureHash) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException, IOException
 	{
-		return sign(new ByteArrayInputStream(bytes), algorithmSignatureHash);
+		Signature sig = Signature.getInstance(algorithmSignatureHash);
+		sig.initSign(privateKey);
+		sig.update(bytes);
+		return sig.sign();
 	}
 
 	/**

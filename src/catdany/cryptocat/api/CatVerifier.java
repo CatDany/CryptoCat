@@ -1,7 +1,6 @@
 package catdany.cryptocat.api;
 
 import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -38,19 +37,19 @@ public class CatVerifier
 	 */
 	public boolean verify(InputStream stream, byte[] signedBytes, String algorithmSignatureHash) throws SignatureException, InvalidKeySpecException, NoSuchAlgorithmException, IOException, InvalidKeyException
 	{
-		Signature dsa = Signature.getInstance(algorithmSignatureHash);
-		dsa.initVerify(publicKey);
+		Signature sig = Signature.getInstance(algorithmSignatureHash);
+		sig.initVerify(publicKey);
 		
 		byte[] buffer = new byte[1024];
 		int len;
 		while (stream.available() != 0)
 		{
 			len = stream.read(buffer);
-			dsa.update(buffer, 0, len);
+			sig.update(buffer, 0, len);
 		}
 		stream.close();
 		
-		return dsa.verify(signedBytes);
+		return sig.verify(signedBytes);
 	}
 
 	/**
@@ -86,6 +85,9 @@ public class CatVerifier
 	 */
 	public boolean verify(byte[] data, byte[] signedBytes, String algorithmSignatureHash) throws InvalidKeyException, SignatureException, InvalidKeySpecException, NoSuchAlgorithmException, IOException
 	{
-		return verify(new ByteArrayInputStream(data), signedBytes, algorithmSignatureHash);
+		Signature sig = Signature.getInstance(algorithmSignatureHash);
+		sig.initVerify(publicKey);
+		sig.update(data);
+		return sig.verify(signedBytes);
 	}
 }

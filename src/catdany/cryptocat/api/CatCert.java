@@ -290,6 +290,12 @@ public class CatCert
 		}
 	}
 	
+	@Override
+	public boolean equals(Object obj)
+	{
+		return toString().equals(obj.toString());
+	}
+	
 	/**
 	 * Builder for {@link CatCert}
 	 * @author Dany

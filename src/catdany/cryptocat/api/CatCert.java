@@ -141,6 +141,7 @@ public class CatCert
 		CatCert.Builder b = new CatCert.Builder()
 			.setVersion(version)
 			.setSubject(subject)
+			.setNote(note)
 			.setValidFrom(validFrom)
 			.setValidTo(validTo)
 			.setIsCA(isCA)
@@ -193,7 +194,7 @@ public class CatCert
 			{
 				return null;
 			}
-			CatCipher cipher = new CatCipher(password.getBytes());
+			CatCipher cipher = new CatCipher(password.getBytes(), (byte)0);
 			return cipher.encrypt(privateKey.getEncoded());
 		}
 		catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeySpecException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException t)
@@ -213,7 +214,7 @@ public class CatCert
 	{
 		try
 		{ 
-			CatCipher cipher = new CatCipher(password.getBytes());
+			CatCipher cipher = new CatCipher(password.getBytes(), (byte)0);
 			PrivateKey privateKey = CatKeyFactory.restorePrivateKey(cipher.decrypt(encryptedPrivateKey), algorithmKeys);
 			return new CatCert(version, subject, note, validFrom, validTo, publicKey, privateKey, isCA, parent, fingerprint, signature, algorithmFingerprint, algorithmKeys, algorithmSignatureHash);
 		}
@@ -595,6 +596,7 @@ public class CatCert
 					.setVersion(json.get("Version").getAsString())
 					.setSubject(json.get("Subject").getAsString())
 					.setIsCA(json.get("IsCA").getAsBoolean())
+					.setNote(json.get("Note").getAsString())
 					.setFingerprint(DatatypeConverter.parseHexBinary(json.get("Fingerprint").getAsString()))
 					.setSignature(DatatypeConverter.parseHexBinary(json.get("Signature").getAsString()))
 					.setFingerprintAlgorithm(json.get("FingerprintAlgorithm").getAsString())

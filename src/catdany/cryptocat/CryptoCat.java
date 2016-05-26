@@ -118,7 +118,7 @@ public class CryptoCat
 				encryptedPrivateKey = Arrays.copyOfRange(encryptedPrivateKey, 0, len);
 				parent = CatCert.fromJson(new File(json.get("Parent").getAsString())).getPrivateKeyCert(encryptedPrivateKey, json.get("ParentPassword").getAsString());
 			}
-			CatCert cert = CatCert.create("V1", json.get("Subject").getAsString(), "", dateFormat.parse(json.get("ValidFrom").getAsString()), dateFormat.parse(json.get("ValidTo").getAsString()), json.get("IsCA").getAsBoolean(), parent, "SHA-1", "RSA", "SHA256withRSA");
+			CatCert cert = CatCert.create("V1", json.get("Subject").getAsString(), json.has("Note") ? json.get("Note").getAsString() : "", dateFormat.parse(json.get("ValidFrom").getAsString()), dateFormat.parse(json.get("ValidTo").getAsString()), json.get("IsCA").getAsBoolean(), parent, "SHA-1", "RSA", "SHA256withRSA");
 			Files.write(CatCert.toJson(cert).toString(), new File(json.get("Output").getAsString()), Charset.defaultCharset());
 			byte[] encryptedPrivateKey = cert.getEncryptedPrivateKey(json.get("Password").getAsString());
 			File encryptedPrivateKeyFile = new File(json.get("PrivateKeyOutput").getAsString());

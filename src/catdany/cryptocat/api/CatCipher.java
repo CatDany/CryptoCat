@@ -3,6 +3,7 @@ package catdany.cryptocat.api;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Arrays;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -16,6 +17,7 @@ public class CatCipher
 {
 	private final SecretKey secret;
 	private final Cipher cipher;
+	public final byte padding;
 	
 	/**
 	 * Used for encrypting data with DES cipher
@@ -25,8 +27,9 @@ public class CatCipher
 	 * @throws InvalidKeySpecException
 	 * @throws NoSuchPaddingException
 	 */
-	public CatCipher(byte[] password) throws InvalidKeyException, NoSuchAlgorithmException, InvalidKeySpecException, NoSuchPaddingException
+	public CatCipher(byte[] password, byte padding) throws InvalidKeyException, NoSuchAlgorithmException, InvalidKeySpecException, NoSuchPaddingException
 	{
+		this.padding = padding;
 		if (password.length != 8)
 		{
 			throw new IndexOutOfBoundsException("Password must be 8 bytes long.");
@@ -38,7 +41,8 @@ public class CatCipher
 	}
 	
 	/**
-	 * Encrypt data with a password
+	 * Encrypt data with a password<br>
+	 * {@link #padding} bytes are added to the end of the byte array.
 	 * @param data
 	 * @return
 	 * @throws BadPaddingException 
@@ -47,12 +51,23 @@ public class CatCipher
 	 */
 	public byte[] encrypt(byte[] data) throws IllegalBlockSizeException, BadPaddingException, InvalidKeyException
 	{
+		int requiredPadding = (8 - data.length % 8) % 8;
+		byte[] paddedData = new byte[data.length + requiredPadding];
+		for (int i = 0; i < data.length; i++)
+		{
+			paddedData[i] = data[i]; 
+		}
+		for (int i = data.length; i < paddedData.length; i++)
+		{
+			paddedData[i] = padding;
+		}
 		cipher.init(Cipher.ENCRYPT_MODE, secret);
-		return cipher.doFinal(data);
+		return cipher.doFinal(paddedData);
 	}
 	
 	/**
-	 * Decrypt data with a password
+	 * Decrypt data with a password<br>
+	 * Remove all {@link #padding} in the end of the byte array.
 	 * @param encrypted
 	 * @return
 	 * @throws IllegalBlockSizeException
@@ -62,6 +77,21 @@ public class CatCipher
 	public byte[] decrypt(byte[] encrypted) throws IllegalBlockSizeException, BadPaddingException, InvalidKeyException
 	{
 		cipher.init(Cipher.DECRYPT_MODE, secret);
-		return cipher.doFinal(encrypted);
+		byte[] data = cipher.doFinal(encrypted);
+		return removePadding(data);
+	}
+	
+	private byte[] removePadding(byte[] data)
+	{
+		int last = data.length;
+		for (int i = last - 1; i > 0; i--)
+		{
+			if (data[i] != padding)
+			{
+				break;
+			}
+			last = i;
+		}
+		return Arrays.copyOfRange(data, 0, last);
 	}
 }
